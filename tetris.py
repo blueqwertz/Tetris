@@ -7,7 +7,7 @@ import sys
 import time
 
 s_width = 515
-s_height = 685
+s_height = 660
 play_width = 300
 play_height = 600
 block_size = 30
@@ -84,8 +84,8 @@ class Tetris(object):
         self.locked_positions = {}
         self.grid = self.create_grid()
         self.change_piece = False
-        self.current_piece = self.get_shape()
-        self.next_piece = self.get_shape()
+        self.current_piece = self.generate_shape()
+        self.next_piece = self.generate_shape()
         
         self.clock = pygame.time.Clock()
         
@@ -93,6 +93,15 @@ class Tetris(object):
         self.level = 0
         self.lines = 0
         self.score = 0
+        
+        self.keys_pressed = [False, False, False] # left, right, down
+        self.key_down_time = [0, 0, 0]
+        self.das = False
+        self.frame_das_start = 16
+        self.frame_das = 6
+        
+        self.frame_rate = 60
+        self.total_frames = 0
                 
         self.run = True
         
@@ -148,13 +157,16 @@ class Tetris(object):
                 p = (pos[0], pos[1])
                 self.locked_positions[p] = self.current_piece.color
             self.current_piece = self.next_piece
-            self.next_piece = self.get_shape()
+            self.next_piece = self.generate_shape()
             self.change_piece = False
-            if self.check_lost():
+            if self.check_game_over():
                 self.run = False
             self.clear_rows()
     
-    def keys(self):
+    def get_keys(self):
+        print(self.das)
+        game_keys = [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_DOWN]
+        
         if self.pause:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -165,6 +177,30 @@ class Tetris(object):
                             self.pause = False
             return
         else:
+            
+            if True in self.keys_pressed:
+                for i, key in enumerate(self.keys_pressed):
+                    if key:
+                        self.key_down_time[i] += 1
+                    if self.das:
+                        if self.key_down_time[i] >= self.frame_das:
+                            x = [-1, 1, 0][i]
+                            y = [0, 0, 1][i]
+                            self.move_cur_piece(x, y)
+                            if not self.valid_space(self.current_piece):
+                                self.move_cur_piece(x=-x, y=-y)
+                                self.das = False
+                            self.key_down_time[i] = 0
+                    elif self.key_down_time[i] >= self.frame_das_start:
+                        self.das = True
+                        x = [-1, 1, 0][i]
+                        y = [0, 0, 1][i]
+                        self.move_cur_piece(x, y)
+                        if not self.valid_space(self.current_piece):
+                                self.move_cur_piece(x=-x, y=-y)
+                                self.das = False
+                        self.key_down_time[i] = 0
+            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.run = False
@@ -172,6 +208,7 @@ class Tetris(object):
                     sys.exit()
                 if event.type == pygame.KEYDOWN:
                     if not self.change_piece:
+                        
                         if event.key == pygame.K_LEFT:
                             self.move_cur_piece(x=-1)
                             if not self.valid_space(self.current_piece):
@@ -184,6 +221,7 @@ class Tetris(object):
                             self.move_cur_piece(y=1)
                             if not self.valid_space(self.current_piece):
                                 self.move_cur_piece(y=-1)
+                        
                         if event.key == pygame.K_SPACE:
                             self.current_piece.rotation += 1
                             if not self.valid_space(self.current_piece):
@@ -193,8 +231,25 @@ class Tetris(object):
                                 self.move_cur_piece(y=1)
                             self.move_cur_piece(y=-1)
                             self.change_piece = True
+                        
+                        # DAS
+                        if event.key in game_keys:
+                            ind = game_keys.index(event.key)
+                            self.keys_pressed[ind] = True
+                            self.key_down_time[ind] = 1
+                        
+                    # PAUSE
                     if event.key == pygame.K_ESCAPE:
                         self.pause = True
+                if event.type == pygame.KEYUP:
+                    if event.key in game_keys:
+                        self.das = False
+                        self.keys_pressed[game_keys.index(event.key)] = False
+                        
+    def render_frames(self):
+        font = pygame.font.Font("font.ttf", 30)
+        label = font.render(str(self.total_frames % self.frame_rate), False, (255, 255, 255))
+        self.surface.blit(label, (0, 0))
     
     def predictTyle(self, shape):
         temp = Piece(shape.x, shape.y, shape.shape)
@@ -221,11 +276,15 @@ class Tetris(object):
     
     def render(self):
         self.renderer.render(self.grid, self.next_piece, self.score, self.level, self.current_piece)
+        # self.render_frames()
     
     def frame(self):
+        
+        self.total_frames += 1
+        
         self.fall_time += self.clock.get_rawtime()
         self.update_speed()
-        self.clock.tick()
+        self.clock.tick(self.frame_rate)
         
         if self.fall_time / 1000 >  self.speed / 60:
             self.fall_time = 0
@@ -256,8 +315,8 @@ class Tetris(object):
 
         self.grid = grid
 
-    def get_shape(self):
-        return Piece(5, 0, shapes[0])
+    def generate_shape(self):
+        return Piece(5, 0, random.choice(shapes))
 
     def convert_shape_format(self, shape):
         positions = []
@@ -286,7 +345,7 @@ class Tetris(object):
     
         return True
 
-    def check_lost(self):
+    def check_game_over(self):
         for pos in self.locked_positions:
             x, y = pos
             if y < 1:
@@ -321,7 +380,7 @@ class Tetris(object):
                             del self.locked_positions[(j, ind + yInc)]
                         except:
                             pass
-                                        
+                
                 self.create_grid()
                 self.update_grid()
                 
@@ -346,6 +405,7 @@ class Tetris(object):
                 if y < ind:
                     newKey = (x, y + inc)
                     self.locked_positions[newKey] = self.locked_positions.pop(key)
+        self.check_new_level()
 
     def printArray(self, arr):
         s = [[str(e) for e in row] for row in arr]
@@ -457,11 +517,20 @@ class Renderer(object):
     def dispGameInfo(self, score, level):
         top_right_x = top_left_x + play_width
         row_width = s_width - top_right_x
-        font = pygame.font.Font('font.ttf', 28)
-        label1 = font.render(f"Score {score}", False, (255, 255, 255))
-        label2 = font.render(f"Level {level + 1}", False, (255, 255, 255))
-        self.surface.blit(label1, (top_right_x + row_width/2 - label1.get_width() / 2, top_left_y + 150))
-        self.surface.blit(label2, (top_right_x + row_width/2 - label2.get_width() / 2, top_left_y + 200))
+        font = pygame.font.Font('font.ttf', 35)
+        
+        labelTitleScore = font.render(f"Score", False, (255, 255, 255))
+        self.surface.blit(labelTitleScore, (top_right_x + 25, top_left_y + 150))
+        
+        labelScore = font.render(str(score), False, (255, 255, 255))
+        self.surface.blit(labelScore, (top_right_x + 25, top_left_y + 183))
+        
+        
+        labelTitleLevel = font.render(f"Level", False, (255, 255, 255))
+        self.surface.blit(labelTitleLevel, (top_right_x + 25, top_left_y + 220))
+        
+        labelLevel = font.render(str(level), False, (255, 255, 255))
+        self.surface.blit(labelLevel, (top_right_x + 25, top_left_y + 253))
 
     def update(self):
         pygame.display.flip()
@@ -475,10 +544,8 @@ def main(surface):
         Game.create_grid()
         if not Game.pause:
             Game.frame()
-        Game.keys()
-        
-        print(Game.clock.get_rawtime())
-        
+        Game.get_keys()
+                
         Game.predictTyle(Game.current_piece)
         
         Game.update_grid()
@@ -488,10 +555,18 @@ def main(surface):
 
 def main_menu(surface):
     run = True
+    clock = pygame.time.Clock()
+    
+    inc = 0
+    time_passed = 0
+    
+    colors = [(216, 23, 24), (246, 156, 16), (212, 186, 15), (92, 192, 31), (53, 172, 255), (149, 45, 216)]
+    letters = list("Tetris")
+    
     while run:
         
         surface.fill((0, 0, 0))
-
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -502,13 +577,23 @@ def main_menu(surface):
 
         font = pygame.font.Font("font.ttf", 80)
         smallFont = pygame.font.Font("font.ttf", 24)
-        label = font.render("T e t r i s", False, (255, 255, 255))
+        
+        if time_passed > 200:
+            inc += 1
+            time_passed = 0
+        
+        time_passed += clock.get_rawtime()
+        clock.tick(60)
+
+        for i, letter in enumerate(letters):
+            letterLabel = font.render(letter, False, colors[(i - inc) % len(colors)])
+            surface.blit(letterLabel, (110 + i * 50, 200))
+        
         explain = smallFont.render("Press  any  key  to  start  the  game", False, (255, 255, 255))
-        surface.blit(label, (s_width/2 - label.get_width() / 2, 100))
         surface.blit(explain, (s_width/2 - explain.get_width() / 2, 500))
         
     
         pygame.display.flip()
 
  
-main_menu(win)
+main(win)
