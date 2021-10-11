@@ -93,7 +93,7 @@ class Tetris(object):
         self.level = 0
         self.lines = 0
         self.score = 0
-        
+                
         self.run = True
         
         self.level_speeds = [
@@ -132,6 +132,7 @@ class Tetris(object):
 
         self.pause = False
 
+        self.surface = win
         self.renderer = Renderer(win, self)
     
     def update_grid(self):
@@ -256,7 +257,7 @@ class Tetris(object):
         self.grid = grid
 
     def get_shape(self):
-        return Piece(5, 0, random.choice(shapes))
+        return Piece(5, 0, shapes[0])
 
     def convert_shape_format(self, shape):
         positions = []
@@ -300,29 +301,37 @@ class Tetris(object):
             if (0, 0, 0) not in row:
                 inc += 1
                 ind = i
-                
-                def clear(x1, x2, ind, sleepTime):
-                    try:
-                        self.grid[ind][x1] = (0, 0, 0)
-                        self.grid[ind][x2] = (0, 0, 0)
-                        del self.locked_positions[(x1, ind)]
-                        del self.locked_positions[(x2, ind)]
-                    except:
-                        pass
-                    self.update_grid()
-                    self.render()
-                    pygame.display.flip()
-                    time.sleep(sleepTime)
-                
-                sleepTime = 0.5
-                
-                clear(4, 5, ind, sleepTime)
-                clear(3, 6, ind, sleepTime)
-                clear(2, 7, ind, sleepTime)
-                clear(1, 8, ind, sleepTime)
-                clear(0, 9, ind, sleepTime)
-                    
+                                        
         if inc > 0:
+            whiteScreen = False
+            clearInd = [[4, 5], [3, 6], [2, 7], [1, 8], [0, 9]]
+            for arr in clearInd:
+                self.surface.fill((0, 0, 0))
+                if inc == 4:
+                    if whiteScreen:
+                        pygame.draw.rect(self.surface, (255, 255, 255), (top_left_x, top_left_y, play_width, play_height))
+                        whiteScreen = False
+                    else:
+                        whiteScreen = True
+                
+                for j in arr:
+                    for yInc in range(inc):
+                        try:
+                            self.grid[ind + yInc][j] = (0, 0, 0)
+                            del self.locked_positions[(j, ind + yInc)]
+                        except:
+                            pass
+                                        
+                self.create_grid()
+                self.update_grid()
+                
+                self.render()
+                self.renderer.update()
+
+                pygame.time.wait(50)
+            
+            pygame.time.wait(200)
+            
             self.lines += inc
             if inc == 1:
                 self.score += 40 * (self.level + 1)
@@ -462,11 +471,13 @@ def main(surface):
 
     while Game.run:
         surface.fill((0, 0, 0))
-
+        
         Game.create_grid()
         if not Game.pause:
             Game.frame()
         Game.keys()
+        
+        print(Game.clock.get_rawtime())
         
         Game.predictTyle(Game.current_piece)
         
@@ -500,4 +511,4 @@ def main_menu(surface):
         pygame.display.flip()
 
  
-main(win)
+main_menu(win)
