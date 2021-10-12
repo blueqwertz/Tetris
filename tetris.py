@@ -87,15 +87,19 @@ class Tetris(object):
         self.current_piece = self.generate_shape()
         self.next_piece = self.generate_shape()
         
+        
         self.clock = pygame.time.Clock()
         
-        self.fall_time = 0
-        self.level = 0
+        self.fall_frames = 0
+        
+        self.level_start = 5
+        self.level = self.level_start
         self.lines = 0
         self.score = 0
         
         self.keys_pressed = [False, False, False] # left, right, down
         self.key_down_time = [0, 0, 0]
+        self.key_up_time = [0, 0, 0]
         self.das = False
         self.frame_das_start = 16
         self.frame_das = 6
@@ -164,7 +168,6 @@ class Tetris(object):
             self.clear_rows()
     
     def get_keys(self):
-        print(self.das)
         game_keys = [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_DOWN]
         
         if self.pause:
@@ -282,12 +285,12 @@ class Tetris(object):
         
         self.total_frames += 1
         
-        self.fall_time += self.clock.get_rawtime()
+        self.fall_frames += 1
         self.update_speed()
         self.clock.tick(self.frame_rate)
         
-        if self.fall_time / 1000 >  self.speed / 60:
-            self.fall_time = 0
+        if self.fall_frames >= self.speed:
+            self.fall_frames = 0
             self.move_cur_piece(y=1)
             if not self.valid_space(self.current_piece) and self.current_piece.y > 0:
                 self.move_cur_piece(y=-1)
@@ -448,8 +451,8 @@ class Renderer(object):
 
         pygame.font.init()
 
-        font = pygame.font.Font('font.ttf', 28)
-        label = font.render("Next Piece", False, (255, 255, 255))
+        font = pygame.font.Font('font.ttf', 35)
+        label = font.render("next", False, (255, 255, 255))
         self.surface.blit(label, (top_right_x + row_width/2 - label.get_width() / 2, top_left_y))
 
         box_size = 90
@@ -529,7 +532,7 @@ class Renderer(object):
         labelTitleLevel = font.render(f"Level", False, (255, 255, 255))
         self.surface.blit(labelTitleLevel, (top_right_x + 25, top_left_y + 220))
         
-        labelLevel = font.render(str(level), False, (255, 255, 255))
+        labelLevel = font.render(str(level + 1), False, (255, 255, 255))
         self.surface.blit(labelLevel, (top_right_x + 25, top_left_y + 253))
 
     def update(self):
@@ -578,7 +581,7 @@ def main_menu(surface):
         font = pygame.font.Font("font.ttf", 80)
         smallFont = pygame.font.Font("font.ttf", 24)
         
-        if time_passed > 200:
+        if time_passed > 100:
             inc += 1
             time_passed = 0
         
@@ -596,4 +599,4 @@ def main_menu(surface):
         pygame.display.flip()
 
  
-main(win)
+main_menu(win)
