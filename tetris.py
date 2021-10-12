@@ -89,6 +89,8 @@ class Tetris(object):
         self.current_piece = self.generate_shape()
         self.next_piece = self.generate_shape()
         
+        self.debug = False
+        self.lastKey = None
         
         self.clock = pygame.time.Clock()
         
@@ -104,6 +106,7 @@ class Tetris(object):
         self.level = self.level_start
         self.lines = 0
         self.score = 0
+        self.top_score = self.load_top()
         
         self.keys_pressed = [False, False, False] # left, right, down
         self.key_down_time = [0, 0, 0]
@@ -156,6 +159,13 @@ class Tetris(object):
         self.surface = win
         self.renderer = Renderer(win, self)
     
+    def load_top(self):
+        with open("top.txt", "r") as file:
+            max = int(file.read())
+            file.close()
+        
+        return max
+    
     def update_grid(self):
         shape_pos = self.convert_shape_format(self.current_piece)
 
@@ -165,27 +175,36 @@ class Tetris(object):
                 self.grid[y][x] = self.current_piece.color
         
         if self.change_piece:
+            self.change_piece = False
             for pos in shape_pos:
                 p = (pos[0], pos[1])
                 self.locked_positions[p] = self.current_piece.color
             self.current_piece = self.next_piece
             self.next_piece = self.generate_shape()
-            self.change_piece = False
             if self.check_game_over():
                 self.game_over()
             self.clear_rows()
     
     def game_over(self):
+        
+        if self.score > self.top_score:
+            with open("top.txt", "w") as file:
+                file.write(str(self.score))
+                file.close()
+        
         line_height = 20
         
         colors = [(216, 23, 24), (246, 156, 16), (212, 186, 15), (92, 192, 31), (53, 172, 255), (149, 45, 216)]
         
-        for line in range(round(play_height / line_height)):
+        for x in range(round(play_height / line_height)):
             self.render()
-            pygame.draw.rect(self.surface, colors[line % len(colors)], (top_left_x, top_left_y + line * line_height, play_width, line_height))
-            pygame.display.update()
+            for line in range(x + 1):
+                pygame.draw.rect(self.surface, colors[line % len(colors)], (top_left_x, top_left_y + line * line_height, play_width, line_height))
+                self.run = False
             pygame.time.wait(40)
-            self.run = False
+            self.renderer.update()
+        self.renderer.update()
+        pygame.time.wait(1000)
     
     def init_joystick(self):
         self.joystick = pygame.joystick.Joystick(0)
@@ -203,6 +222,9 @@ class Tetris(object):
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                             self.pause = False
+                if event.type == pygame.JOYBUTTONDOWN:
+                    if event.button == 6:
+                        self.pause = False
             return
         else:
             
@@ -247,6 +269,10 @@ class Tetris(object):
                 if event.type == pygame.JOYBUTTONDOWN:
                     if not self.change_piece:
                         
+                        keyList = [13, 14, 12, 2, 0]
+                        if event.button in keyList:
+                            self.lastKey = ["LEFT", "RIGHT", "DOWN", "ROTATE", "ALL DOWN", "PAUSE"][keyList.index(event.button)]
+                        
                         if event.button == 13:
                             self.move_cur_piece(x=-1)
                             if not self.valid_space(self.current_piece):
@@ -280,6 +306,10 @@ class Tetris(object):
                 if event.type == pygame.KEYDOWN:
                     if not self.change_piece:
                         
+                        keyList = [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_RIGHT, pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE]
+                        if event.key in keyList:
+                            self.lastKey = ["LEFT", "RIGHT", "DOWN", "ROTATE", "ALL DOWN", "PAUSE"][keyList.index(event.key)]
+                        
                         if event.key == pygame.K_LEFT:
                             self.move_cur_piece(x=-1)
                             if not self.valid_space(self.current_piece):
@@ -312,6 +342,10 @@ class Tetris(object):
                         
                     # PAUSE
                     if event.key == pygame.K_ESCAPE:
+                        self.pause = True
+                
+                if event.type == pygame.JOYBUTTONDOWN:
+                    if event.button == 6:
                         self.pause = True
                 
                 if event.type == pygame.JOYBUTTONUP:
@@ -354,7 +388,8 @@ class Tetris(object):
     
     def render(self):
         self.renderer.render(self.grid, self.next_piece, self.score, self.level, self.current_piece)
-        # self.render_frames()
+        if self.debug:
+            self.renderer.dispDebug()
     
     def frame(self):
         
@@ -418,6 +453,8 @@ class Tetris(object):
         
         for pos in formatted:
             if pos not in accepted_positions:
+                if pos[0] < 0 or pos[0] > len(self.grid[0]):
+                    return False
                 if pos[1] > -1:
                     return False
     
@@ -510,7 +547,7 @@ class Renderer(object):
 
         
         self.draw_next_shape(next_shape)
-        self.dispGameInfo(score, level)
+        self.dispGameInfo(score, level, self.game.top_score)
         
         if self.game.pause:
             self.draw_text_middle("PAUSE", 60, (255, 255, 255))
@@ -557,6 +594,31 @@ class Renderer(object):
                 if column == "1":
                     self.renderPiece(sx + (j - tyleStartX + (maxWH - tyleW) / 2) * tyle_size, sy + (i - tyleStartY + (maxWH - tyleH) / 2) * tyle_size, shape.color, tyle_size)
 
+    def dispDebug(self):
+        #fps
+        #frames in 60
+        #key
+        #x, y
+        x, y = str(self.game.current_piece.x), str(self.game.current_piece.y)
+        fps = round(self.game.clock.get_fps())
+        key = self.game.lastKey
+        framesIn60 = self.game.total_frames % self.game.frame_rate
+        das = " ".join([["LEFT", "RIGHT", "DOWN"][i] for i, dasEl in enumerate(self.game.keys_pressed) if dasEl])
+        das_charged = "True" if self.game.das else ""
+        
+        font = pygame.font.Font("font.ttf", 20)
+        labels = [
+            font.render(str(x + " " + y), False, (255, 255, 255)),
+            font.render(str(fps), False, (255, 255, 255)),
+            font.render(str(key), False, (255, 255, 255)),
+            font.render(str(framesIn60), False, (255, 255, 255)),
+            font.render(str(das), False, (255, 255, 255)),
+            font.render(str(das_charged), False, (255, 255, 255))
+        ]
+        
+        for i, label in enumerate(labels):
+            self.surface.blit(label, (top_left_x + play_width + 20, play_height / 2 + play_height / 5 + i * 35))
+            
     def draw_grid(self, grid):
         sx = top_left_x
         sy = top_left_y
@@ -567,6 +629,8 @@ class Renderer(object):
                 pygame.draw.line(self.surface, (128, 128, 128), (sx + j * block_size, sy), (sx + j * block_size, sy + play_height))
     
     def renderPiece(self, x, y, color, size=30, border=False):
+        if y - top_left_y < 0:
+            return
         if border:
             pygame.draw.rect(self.surface, color, (x, y, size, size), 2)
             return
@@ -594,7 +658,7 @@ class Renderer(object):
         
         return width, height, minX, minY
 
-    def dispGameInfo(self, score, level):
+    def dispGameInfo(self, score, level, topScore):
         top_right_x = top_left_x + play_width
         row_width = s_width - top_right_x
         font = pygame.font.Font('font.ttf', 35)
@@ -611,6 +675,12 @@ class Renderer(object):
         
         labelLevel = font.render(str(level + 1), False, (255, 255, 255))
         self.surface.blit(labelLevel, (top_right_x + 25, top_left_y + 253))
+        
+        labelTopTitle = font.render(f"TOP", False, (255, 255, 255))
+        self.surface.blit(labelTopTitle, (top_right_x + 25, top_left_y + 290))
+        
+        labelTop = font.render(str(topScore), False, (255, 255, 255))
+        self.surface.blit(labelTop, (top_right_x + 25, top_left_y + 323))
 
     def update(self):
         pygame.display.flip()
@@ -630,8 +700,9 @@ def main(surface):
         
         Game.update_grid()
 
-        Game.render()
-        Game.renderer.update()
+        if Game.run:
+            Game.render()
+            Game.renderer.update()
 
 def main_menu(surface):
     run = True
