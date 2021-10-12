@@ -3,7 +3,7 @@ from pygame.constants import GL_RED_SIZE
 import pygame.freetype
 import random
 import os
-import sys 
+import sys
 import time
 
 s_width = 515
@@ -17,6 +17,8 @@ windowY = 200
 os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (windowX,windowY)
 
 pygame.init()
+pygame.joystick.init()
+
 win = pygame.display.set_mode((s_width, s_height))
 pygame.display.set_caption("Tetris")
 
@@ -89,6 +91,12 @@ class Tetris(object):
         
         
         self.clock = pygame.time.Clock()
+        
+        self.joystick_connected = pygame.joystick.get_count() > 0
+        self.joystick = None
+        
+        if self.joystick_connected:
+            self.init_joystick()    
         
         self.fall_frames = 0
         
@@ -164,11 +172,28 @@ class Tetris(object):
             self.next_piece = self.generate_shape()
             self.change_piece = False
             if self.check_game_over():
-                self.run = False
+                self.game_over()
             self.clear_rows()
+    
+    def game_over(self):
+        line_height = 20
+        
+        colors = [(216, 23, 24), (246, 156, 16), (212, 186, 15), (92, 192, 31), (53, 172, 255), (149, 45, 216)]
+        
+        for line in range(round(play_height / line_height)):
+            self.render()
+            pygame.draw.rect(self.surface, colors[line % len(colors)], (top_left_x, top_left_y + line * line_height, play_width, line_height))
+            pygame.display.update()
+            pygame.time.wait(40)
+            self.run = False
+    
+    def init_joystick(self):
+        self.joystick = pygame.joystick.Joystick(0)
+        self.joystick.init()
     
     def get_keys(self):
         game_keys = [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_DOWN]
+        joystick_keys = [13, 14, 12]
         
         if self.pause:
             for event in pygame.event.get():
@@ -205,10 +230,53 @@ class Tetris(object):
                         self.key_down_time[i] = 0
             
             for event in pygame.event.get():
+                
+                if event.type == pygame.JOYDEVICEADDED:
+                    self.joystick_connected = True
+                    self.init_joystick()
+                
+                if event.type == pygame.JOYDEVICEREMOVED:
+                    self.joystick = None
+                    self.joystick_connected = False
+                
                 if event.type == pygame.QUIT:
                     self.run = False
                     pygame.quit()
                     sys.exit()
+                
+                if event.type == pygame.JOYBUTTONDOWN:
+                    if not self.change_piece:
+                        
+                        if event.button == 13:
+                            self.move_cur_piece(x=-1)
+                            if not self.valid_space(self.current_piece):
+                                self.move_cur_piece(x=1)
+                        if event.button == 14:
+                            self.move_cur_piece(x=1)
+                            if not self.valid_space(self.current_piece):
+                                self.move_cur_piece(x=-1)
+                        if event.button == 12:
+                            self.move_cur_piece(y=1)
+                            if not self.valid_space(self.current_piece):
+                                self.move_cur_piece(y=-1)
+                        
+                        if event.button == 2:
+                            self.current_piece.rotation += 1
+                            if not self.valid_space(self.current_piece):
+                                self.current_piece.rotation -= 1
+                                
+                        if event.button == 0:
+                            while self.valid_space(self.current_piece):
+                                self.move_cur_piece(y=1)
+                            self.move_cur_piece(y=-1)
+                            self.change_piece = True
+                        
+                        # DAS
+                        if event.button in joystick_keys:
+                            ind = joystick_keys.index(event.button)
+                            self.keys_pressed[ind] = True
+                            self.key_down_time[ind] = 1   
+                
                 if event.type == pygame.KEYDOWN:
                     if not self.change_piece:
                         
@@ -229,6 +297,7 @@ class Tetris(object):
                             self.current_piece.rotation += 1
                             if not self.valid_space(self.current_piece):
                                 self.current_piece.rotation -= 1
+                                
                         if event.key == pygame.K_RETURN:
                             while self.valid_space(self.current_piece):
                                 self.move_cur_piece(y=1)
@@ -244,6 +313,12 @@ class Tetris(object):
                     # PAUSE
                     if event.key == pygame.K_ESCAPE:
                         self.pause = True
+                
+                if event.type == pygame.JOYBUTTONUP:
+                    if event.button in joystick_keys:
+                        self.das = False
+                        self.keys_pressed[joystick_keys.index(event.button)] = False
+                
                 if event.type == pygame.KEYUP:
                     if event.key in game_keys:
                         self.das = False
@@ -349,9 +424,11 @@ class Tetris(object):
         return True
 
     def check_game_over(self):
+        print("Game Over")
         for pos in self.locked_positions:
             x, y = pos
-            if y < 1:
+            if y < 0:
+                print(x, y)
                 return True
         return False
 
@@ -566,6 +643,10 @@ def main_menu(surface):
     colors = [(216, 23, 24), (246, 156, 16), (212, 186, 15), (92, 192, 31), (53, 172, 255), (149, 45, 216)]
     letters = list("Tetris")
     
+    if pygame.joystick.get_count() > 0:
+        j = pygame.joystick.Joystick(0)
+        j.init()
+    
     while run:
         
         surface.fill((0, 0, 0))
@@ -573,6 +654,8 @@ def main_menu(surface):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
+            if event.type == pygame.JOYBUTTONDOWN:
+                main(surface)
             if event.type == pygame.KEYDOWN:
                 main(surface)
 
