@@ -1,5 +1,4 @@
 import pygame
-from pygame.constants import GL_RED_SIZE
 import pygame.freetype
 import random
 import os
@@ -89,7 +88,7 @@ class Tetris(object):
         self.current_piece = self.generate_shape()
         self.next_piece = self.generate_shape()
         
-        self.debug = False
+        self.debug = True
         self.lastKey = None
         
         self.clock = pygame.time.Clock()
