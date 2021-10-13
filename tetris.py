@@ -356,6 +356,7 @@ class Tetris(object):
                     if event.key in game_keys:
                         self.das = False
                         self.keys_pressed[game_keys.index(event.key)] = False
+                        self.key_down_time[game_keys.index(event.key)] = 0
                         
     def render_frames(self):
         font = pygame.font.Font("font.ttf", 30)
