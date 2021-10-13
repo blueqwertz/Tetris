@@ -461,11 +461,9 @@ class Tetris(object):
         return True
 
     def check_game_over(self):
-        print("Game Over")
         for pos in self.locked_positions:
             x, y = pos
             if y < 0:
-                print(x, y)
                 return True
         return False
 
