@@ -38,8 +38,8 @@ Z = [
 ]
 
 I = [
-    ["00100", "00100", "00100", "00100", "00000"],
     ["00000", "11110", "00000", "00000", "00000"],
+    ["00100", "00100", "00100", "00100", "00000"],
 ]
 
 O = [["00000", "00000", "01100", "01100", "00000"]]
@@ -88,7 +88,7 @@ class Tetris(object):
         self.current_piece = self.generate_shape()
         self.next_piece = self.generate_shape()
         
-        self.debug = True
+        self.debug = False
         self.lastKey = None
         
         self.clock = pygame.time.Clock()
@@ -151,9 +151,12 @@ class Tetris(object):
             2,  # 28
             1
         ]
-        self.speed = self.level_speeds[self.level]
+        self.speed = 0
+        self.update_speed()
 
         self.pause = False
+        self.restart_label_info = {"x": None, "y": None, "width": None, "height": None}
+        self.restart = False
 
         self.surface = win
         self.renderer = Renderer(win, self)
@@ -218,6 +221,16 @@ class Tetris(object):
                 if event.type == pygame.QUIT:
                     self.run = False
                     exit()
+                if event.type == pygame.MOUSEBUTTONUP:
+                    try:
+                        x, y = pygame.mouse.get_pos()
+                        labelX, labelY, labelWidth, labelHeight = self.restart_label_info["x"], self.restart_label_info["y"], self.restart_label_info["width"], self.restart_label_info["height"]
+                        if labelX < x < labelX + labelWidth:
+                            if labelY < y < labelY + labelHeight:
+                                self.restart = True
+                    except:
+                        pass
+                        
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                             self.pause = False
@@ -549,8 +562,23 @@ class Renderer(object):
         
         if self.game.pause:
             self.draw_text_middle("PAUSE", 60, (255, 255, 255))
+            _, self.game.restart_label_info["x"], self.game.restart_label_info["y"], self.game.restart_label_info["width"], self.game.restart_label_info["height"] = self.text("RESTART", 40, (255, 0, 0), "CENTER", 450)
+            
         
         pygame.draw.rect(self.surface, (128, 128, 128), (top_left_x, top_left_y, play_width, play_height), 4)
+    
+    def text(self, text, size, color, x, y):
+        font = pygame.font.Font("font.ttf", size)
+        label = font.render(text, False, color)
+        
+        if x == "CENTER":
+            x = top_left_x + play_width/2 - label.get_width() / 2
+        if y == "CENTER":
+            y = top_left_y + play_height / 2 - label.get_height() / 2
+            
+        self.surface.blit(label, (x, y))
+        
+        return label, x, y, label.get_width(), label.get_height()
     
     def draw_text_middle(self, text, size, color):
         font = pygame.font.Font("font.ttf", size)
@@ -687,6 +715,9 @@ def main(surface):
     Game = Tetris(surface)
 
     while Game.run:
+        if Game.restart:
+            Game = Tetris(surface)
+        
         surface.fill((0, 0, 0))
         
         Game.create_grid()
